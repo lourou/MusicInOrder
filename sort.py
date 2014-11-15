@@ -2,6 +2,7 @@
 
 import sys
 import os
+import discogs_client
 
 def artist_title_from_filename(filename):
     # remove file extension
@@ -11,12 +12,11 @@ def artist_title_from_filename(filename):
     if filename[0:2].isdigit():
         filename = filename[2:]
     
-    # split and strip off artist and title assuming the filename is written the "artist - title" way
+    # split and strip off white spaces from artist and title assuming the filename is written the "artist - title" way
     try:
         splitted_filename = filename.split(' - ')
-        artist = splitted_filename[0].strip()
-        title = splitted_filename[1].strip()
-        return [artist, title]
+        d = {"artist": splitted_filename[0].strip(), "title": splitted_filename[1].strip()}
+        return d
     except:
         print "Could not parse artist and title from filename"
     return
