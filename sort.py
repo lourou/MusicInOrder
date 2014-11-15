@@ -2,7 +2,11 @@
 
 import sys
 import os
+import configparser
 import discogs_client
+
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 def artist_title_from_filename(filename):
     # remove file extension
@@ -28,3 +32,4 @@ try:
         print artist_title_from_filename(sys.argv[1])
 except:
     print "Usage sort.py \"filename\""
+
