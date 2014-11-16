@@ -54,6 +54,8 @@ def track_data_from_discogs(data):
             try:
                 # Look for releases that are not compilations
                 if "Compilation" not in result.formats[0][u"descriptions"]:
+                    
+                    cli_output('Release ID: ' + str(result.id))
 
                     discogs_data = dict()
                     discogs_data.update({'id': result.id})
@@ -62,8 +64,8 @@ def track_data_from_discogs(data):
                     discogs_data.update({'country': result.country})
                     discogs_data.update({'artist': result.artists[0].name})
                     discogs_data.update({'label': result.labels[0].name})
-
                     return discogs_data
+
                     break
             except:
                cli_output('Could not get release data from Discogs')
@@ -94,6 +96,7 @@ def track_metadata_from_file(path):
 
 
 def get_track_details(path):
+    filename = os.path.basename(path)
     data = track_data_from_filename(filename)
     if data:
         cli_output('Parsing filename')
@@ -123,7 +126,8 @@ def get_track_details(path):
                     return discogs_data
 
 
-def new_filename(path):
+def get_new_filename(path):
+    filename = os.path.basename(path)
     if not track_data_from_filename(filename):
         metadata = track_metadata_from_file(path)
         if metadata:
@@ -133,28 +137,31 @@ def new_filename(path):
             cli_output('File will be renamed to: ' + new_filename)
             return new_filename;
 
+def main():
+    # Get CLI arguments
+    try:
+        path = sys.argv[1]
+        filename = os.path.basename(path)
+        print '==> ' + filename
+    except:
+        print 'Usage: sort.py "filename"'
+        sys.exit()
 
-# Get CLI arguments
-try:
-    path = sys.argv[1]
-    filename = os.path.basename(path)
-    print '==> ' + filename
-except:
-    print 'Usage: sort.py "filename"'
-    sys.exit()
+    track_details = get_track_details(path)
+    if track_details:
 
-track_details = get_track_details(path)
-if track_details:
+        # Does the file requires a new filename ?
+        new_filename = get_new_filename(path)
+        if(new_filename):
+            dest_filename = new_filename
+        else:
+            dest_filename = filename
 
-    # Does the file requires a new filename ?
-    new_filename = new_filename(path)
-    if(new_filename):
-        dest_filename = new_filename
+        dest_path = str(track_details['country']) + '/' + str(track_details['label']) + '/' + str(track_details['year']) + '/' + dest_filename
+        cli_output('[OK] File would be moved to: ' + dest_path)
     else:
-        dest_filename = filename
+        cli_output('[KO] Could not determine track details')
 
-    dest_path = str(track_details['country']) + '/' + str(track_details['label']) + '/' + str(track_details['year']) + '/' + dest_filename
-    cli_output('[OK] File would be moved to: ' + dest_path)
-else:
-    cli_output('[KO] Could not determine track details')
 
+if __name__ == "__main__":
+    main()
