@@ -72,9 +72,13 @@ def track_data_from_discogs(data):
         return
 
 
+def get_file_ext(filename):
+    return os.path.splitext(filename)[1][1:]
+
+
 def track_metadata_from_file(path):
     filename = os.path.basename(path)
-    ext = os.path.splitext(filename)[1][1:]
+    ext = get_file_ext(filename)
 
     try:
         if ext == 'mp3':
@@ -112,11 +116,22 @@ def get_track_details(path):
         cli_output('Parsing metadata')
         metadata = track_metadata_from_file(path)
         if metadata:
+            # Query Discogs based on file metadata
             discogs_data = track_data_from_discogs(metadata)
             if discogs_data:
                 # we've got something from discogs
                     return discogs_data
 
+
+def new_filename(path):
+    if not track_data_from_filename(filename):
+        metadata = track_metadata_from_file(path)
+        if metadata:
+            # Rename file in the "Artist - Title" way because it is currently malformed
+            ext = get_file_ext(filename)
+            new_filename = metadata['artist'] + ' - ' + metadata['title'] + '.' + ext
+            cli_output('File will be renamed to: ' + new_filename)
+            return new_filename;
 
 
 # Get CLI arguments
@@ -128,18 +143,18 @@ except:
     print 'Usage: sort.py "filename"'
     sys.exit()
 
-
 track_details = get_track_details(path)
 if track_details:
-    dest_path = str(track_details['country']) + '/' + str(track_details['label']) + '/' + str(track_details['year']) + '/' + filename
+
+    # Does the file requires a new filename ?
+    new_filename = new_filename(path)
+    if(new_filename):
+        dest_filename = new_filename
+    else:
+        dest_filename = filename
+
+    dest_path = str(track_details['country']) + '/' + str(track_details['label']) + '/' + str(track_details['year']) + '/' + dest_filename
     cli_output('[OK] File would be moved to: ' + dest_path)
 else:
     cli_output('[KO] Could not determine track details')
-
-    
-
-
-
-
-
 
