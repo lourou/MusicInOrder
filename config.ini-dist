@@ -3,3 +3,9 @@ consumer_key:		##
 consumer_secret:	##
 access_token:		##
 access_secret:		##
+
+[paths]
+droplet_dir: 		/path/to/droplet_directory
+destination_dir:	/path/to/music_directory
+duplicates_dir:		/path/to/music_directory/_duplicates
+review_dir:			/path/to/music_directory/_review
