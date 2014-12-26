@@ -2,6 +2,8 @@
 
 import sys
 import os
+import re
+import time
 import configparser
 import discogs_client
 import mutagen.easyid3
@@ -15,6 +17,13 @@ config.read('config.ini')
 def cli_output(message):
     print('    ' + message)
 
+def remove_parenthesis(text):
+	regEx = re.compile(r'([^\(]*)\([^\)]*\) *(.*)')
+	m = regEx.match(text)
+	while m:
+	  text = m.group(1) + m.group(2)
+	  m = regEx.match(text)
+	return text
 
 def track_data_from_filename(filename):
     # remove file extension
@@ -27,7 +36,7 @@ def track_data_from_filename(filename):
     # split and strip off white spaces from artist and title assuming the filename is written the "artist - title" way
     try:
         splitted_filename = filename.split(' - ')
-        data = {"artist": splitted_filename[0].strip(), "title": splitted_filename[1].strip()}
+        data = {"artist": splitted_filename[0].strip(), "title": remove_parenthesis(splitted_filename[1].strip())}
         return data
     except:
         return
@@ -51,24 +60,35 @@ def track_data_from_discogs(data):
         cli_output(str(results.count) + ' results found on Discogs')
 
         for result in results:
-            try:
-                # Look for releases that are not compilations
-                if "Compilation" not in result.formats[0][u"descriptions"]:
+            #try:
+                # Look for releases that are not compilations, allow compilation if only one release is found
+                if (results.count == 1) \
+				or (results.count > 1 and "Compilation" not in result.formats[0][u"descriptions"]):
                     
+                    # Display Release ID
                     cli_output('Release ID: ' + str(result.id))
 
                     discogs_data = dict()
                     discogs_data.update({'id': result.id})
                     discogs_data.update({'release_title': result.title})
                     discogs_data.update({'year': result.year})
+                    discogs_data.update({'decade': str(result.year)[0:3] + '0'})
                     discogs_data.update({'country': result.country})
                     discogs_data.update({'artist': result.artists[0].name})
                     discogs_data.update({'label': result.labels[0].name})
+                    if(len(result.styles) > 1):
+                    	# Pick the 2nd style if many, usually the most accurate on Discogs
+                    	discogs_data.update({'style': result.styles[1]})
+                    elif(len(result.styles) == 1):
+                    	# Pick the only style available otherwise
+                    	discogs_data.update({'style': result.styles[0]})
+                    else:
+                    	discogs_data.update({'style': 'no_style'})
                     return discogs_data
 
                     break
-            except:
-               cli_output('Could not get release data from Discogs')
+            #except:
+            #   cli_output('Could not get release data from Discogs')
     else:
         cli_output('No result found on Discogs')
         return
@@ -83,14 +103,13 @@ def track_metadata_from_file(path):
     ext = get_file_ext(filename)
 
     try:
-        if ext == 'mp3':
+        if ext == 'mp3' or ext == 'MP3':
             metadata = mutagen.easyid3.Open(path)
-            return {"artist": metadata['artist'][0], "title": metadata['title'][0]}
+            return {"artist": metadata['artist'][0], "title": remove_parenthesis(metadata['title'][0])}
             
-
         elif ext == 'm4a' or ext == 'mp4':
             metadata = mutagen.mp4.Open(path)
-            return {"artist": metadata['\xa9ART'][0], "title": metadata['\xa9nam'][0]}
+            return {"artist": metadata['\xa9ART'][0], "title": remove_parenthesis(metadata['\xa9nam'][0])}
     except:
         cli_output('Error reading file metadata')
 
@@ -147,21 +166,59 @@ def main():
         print 'Usage: sort.py "filename"'
         sys.exit()
 
+    # Read config directory paths
+    destination_dir = config.get('paths', 'destination_dir')
+    duplicates_dir  = config.get('paths', 'duplicates_dir')
+    review_dir      = config.get('paths', 'review_dir')
+
+    # Does the file requires a new filename ?
+    new_filename = get_new_filename(path)
+    if(new_filename):
+        dest_filename = new_filename
+    else:
+        dest_filename = filename
+
     track_details = get_track_details(path)
     if track_details:
 
-        # Does the file requires a new filename ?
-        new_filename = get_new_filename(path)
-        if(new_filename):
-            dest_filename = new_filename
-        else:
-            dest_filename = filename
+        # Create directories
+        try:
+            os.mkdir(destination_dir + '/' + str(track_details['style']))
+        except OSError:
+            cli_output(str(track_details['style']) + ' directory already exists')
 
-        dest_path = str(track_details['country']) + '/' + str(track_details['label']) + '/' + str(track_details['year']) + '/' + dest_filename
-        cli_output('[OK] File would be moved to: ' + dest_path)
+        try:
+            os.mkdir(destination_dir + '/' + str(track_details['style']) + '/' + str(track_details['decade']))
+        except OSError:
+            cli_output(str(track_details['decade']) + ' directory already exists')
+
+        # Move file
+        dest_path = destination_dir + '/' + str(track_details['style']) + '/' + str(track_details['decade']) + '/' + dest_filename
+
+        if os.path.isfile(dest_path):
+            try:
+                os.rename(path, duplicates_dir + '/' + dest_filename)
+                cli_output('[KO] File already exists, moved to duplicates directory')
+            except OSError:
+                cli_output('[KO] Cannot move file to duplicates directory')
+
+        else:
+            try:
+                os.rename(path, dest_path)
+                cli_output('[OK] File moved to: ' + dest_path)
+            except OSError:
+                cli_output('[KO] Cannot move file')
+
     else:
         cli_output('[KO] Could not determine track details')
+        try:
+            os.rename(path, review_dir + '/' + dest_filename)
+            cli_output('File moved to review directory')
+        except OSError:
+            cli_output('[KO] Cannot move file to review')
 
+# Wait for 1 second before exiting
+time.sleep(1)
 
 if __name__ == "__main__":
     main()
